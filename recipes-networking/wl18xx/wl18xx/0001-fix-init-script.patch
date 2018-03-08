@@ -1,0 +1,67 @@
+diff --git a/build_wl18xx.sh b/build_wl18xx.sh
+index 73c8db8..294f08b 100755
+--- a/build_wl18xx.sh
++++ b/build_wl18xx.sh
+@@ -259,6 +259,7 @@ function setup_branches()
+            [[ -n $RESET ]] && echo -e "${PURPLE}Reset to latest in repo ${GREEN}$name ${NORMAL} branch  ${GREEN}$branch ${NORMAL}"  && git reset --hard origin/$branch
+            [[ -n $USE_TAG ]] && git checkout $USE_TAG  && echo -e "${NORMAL}Reset to tag ${GREEN}$USE_TAG   ${NORMAL}in repo ${GREEN}$name ${NORMAL} "            
+         fi        
++        git pull --rebase
+ 		cd_back
+ 		i=$[$i + 3]
+ 	done
+@@ -376,7 +377,17 @@ function build_modules()
+ 	if [ -z $NO_CLEAN ]; then
+ 		make clean
+ 	fi
++	old_cc=${CC}
++	old_ld=${LD}
++	old_cflags=${CFLAGS}
++	old_cppflags=${CPPFLAGS}
++	old_ldflags=${LDFLAGS}
++	CC=gcc
++	LD=ld
++	unset CFLAGS CPPFLAGS LDFLAGS
+ 	make defconfig-wl18xx
++	CC=${old_cc}
++	LD=${old_ld}
+ 	make -j${PROCESSORS_NUMBER}
+ 	assert_no_error
+ 	#find . -name \*.ko -exec cp {} `path debugging`/ \;
+@@ -384,6 +395,9 @@ function build_modules()
+     
+ 	make  modules_install
+ 	assert_no_error
++	CFLAGS=${old_cflags}
++	CPPFLAGS=${old_cppflags}
++	LDFLAGS=${old_ldflags}
+ 	cd_back
+ }
+ 
+@@ -489,7 +503,7 @@ function build_calibrator()
+ 	cd_repo ti_utils
+ 	[ -z $NO_CLEAN ] && NFSROOT=`path filesystem` make clean
+ 	[ -z $NO_CLEAN ] && assert_no_error
+-	NLVER=3 NLROOT=`repo_path libnl`/include NFSROOT=`path filesystem` LIBS+=-lpthread make
++	NLVER=3 NLROOT=`repo_path libnl`/include NFSROOT=`path filesystem` LIBS+=-lpthread CFLAGS="${CFLAGS}" CPPFLAGS="${CPPFLAGS}" LDFLAGS="${LDFLAGS}" make
+ 	assert_no_error
+ 	NFSROOT=`path filesystem` make install
+ 	#assert_no_error
+@@ -509,7 +523,7 @@ function build_wlconf()
+ 		done
+ 		rm -f `path filesystem`/usr/sbin/wlconf/official_inis/*
+ 	fi
+-	NFSROOT=`path filesystem` make CC=${CROSS_COMPILE}gcc LD=${CROSS_COMPILE}ld
++	NFSROOT=`path filesystem` CFLAGS="${CFLAGS}" CPPFLAGS="${CPPFLAGS}" LDFLAGS="${LDFLAGS}" make
+ 	assert_no_error
+ 
+ 	# install
+@@ -861,7 +875,7 @@ function setup_workspace()
+ 	setup_branches
+     verify_installs
+     #Download toolchain only if it was not set
+-    [ DEFAULT_TOOLCHAIN ] && setup_toolchain   
++    [ "$DEFAULT_TOOLCHAIN" ] && setup_toolchain
+ }
+ 
+ 

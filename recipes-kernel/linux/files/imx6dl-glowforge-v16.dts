@@ -1,0 +1,721 @@
+/*
+ * Copyright (C) 2015 Glowforge, Inc. <opensource@glowforge.com>
+ * Based on work by Rabeeh Khoury and Russell King.
+ */
+/dts-v1/;
+
+#include "imx6dl.dtsi"
+
+/ {
+	model = "Glowforge Control Board";
+	compatible = "glowforge,imx6dl-glowforge", "fsl,imx6dl";
+
+	/* An i.MX6 Solo is a DualLite with only one core. */
+	cpus {
+		/delete-node/ cpu@1;
+	};
+
+	chosen {
+		bootargs = "quiet console=ttymxc0,115200 root=/dev/mmcblk1p2 rw";
+	};
+
+	aliases {
+		mxcfb0 = &mxcfb1;
+	};
+
+	regulators {
+		compatible = "simple-bus";
+
+		reg_3p3v: 3p3v {
+			compatible = "regulator-fixed";
+			regulator-name = "3p3v";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+
+		reg_wlan: wlan-vbus {
+			compatible = "regulator-fixed";
+			regulator-name = "wlan-en-regulator";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			/* WLAN_EN GPIO */
+			gpio = <&gpio5 26 0>;
+			/* WLAN card specific delay */
+			startup-delay-us = <70000>;
+			enable-active-high;
+		};
+
+		reg_12v: 12v {
+			compatible = "regulator-fixed";
+			enable-active-high;
+			regulator-boot-on;
+			gpio = <&gpio5 8 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_12v>;
+			regulator-name = "12v";
+			regulator-min-microvolt = <12000000>;
+			regulator-max-microvolt = <12000000>;
+		};
+
+		reg_40v: 40v {
+			compatible = "regulator-fixed";
+			enable-active-high;
+			gpio = <&gpio5 17 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_40v>;
+			regulator-name = "40v";
+			regulator-min-microvolt = <40000000>;
+			regulator-max-microvolt = <40000000>;
+		};
+
+		control_12v: control_12v {
+			compatible = "reg-userspace-consumer";
+			regulator-name = "control_12v";
+			regulator-boot-on;
+			regulator-supplies = "12v";
+			12v-supply = <&reg_12v>;
+		};
+	};
+
+	mxcfb1: fb@0 {
+		compatible = "fsl,mxc_sdc_fb";
+		disp_dev = "hdmi";
+		interface_pix_fmt = "RGB24";
+		mode_str ="1920x1080M@60";
+		default_bpp = <32>;
+		int_clk = <0>;
+		late_init = <0>;
+		status = "okay";
+	};
+
+	v4l2_cap_0 {
+		compatible = "fsl,imx6q-v4l2-capture";
+		ipu_id = <0>;
+		csi_id = <1>;
+		mclk_source = <0>;
+		mipi_camera = <1>;
+		default_input = <1>;
+		status = "okay";
+	};
+
+	v4l2_out {
+		compatible = "fsl,mxc_v4l2_output";
+		status = "okay";
+	};
+
+	/* outputs control */
+	outputs {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_outputs>;
+
+		camera_mux_oe {
+			label = "camera_mux_oe";
+			gpios = <&gpio6 7 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+
+		interlock_reset {
+			label = "interlock_reset";
+			gpios = <&gpio4 5 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+	};
+
+	/* switches */
+	switches {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_switches>;
+
+		door1 {
+			label = "door1";
+			gpios = <&gpio4 14 GPIO_ACTIVE_LOW>;
+			debounce-interval = <5>;
+			linux,code = <0>;
+			linux,input-type = <5>; /* EV_SW */
+		};
+		door2 {
+			label = "door2";
+			gpios = <&gpio1 6 GPIO_ACTIVE_LOW>;
+			debounce-interval = <5>;
+			linux,code = <1>;
+			linux,input-type = <5>; /* EV_SW */
+		};
+		button {
+			label = "button";
+			gpios = <&gpio4 9 GPIO_ACTIVE_LOW>;
+			debounce-interval = <20>;
+			linux,code = <2>;
+			linux,input-type = <5>; /* EV_SW */
+		};
+		doors {
+			label = "doors";
+			gpios = <&gpio1 0 GPIO_ACTIVE_LOW>;
+			debounce-interval = <5>;
+			linux,code = <3>;
+			linux,input-type = <5>; /* EV_SW */
+		};
+		estop {
+			label = "estop";
+			gpios = <&gpio4 6 GPIO_ACTIVE_HIGH>;
+			debounce-interval = <5>;
+			linux,code = <4>;
+			linux,input-type = <5>; /* EV_SW */
+		};
+		interlock {
+			label = "interlock";
+			gpios = <&gpio1 9 GPIO_ACTIVE_HIGH>;
+			debounce-interval = <5>;
+			linux,code = <5>;
+			linux,input-type = <5>; /* EV_SW */
+		};
+		interlock_latch {
+			label = "interlock_latch";
+			gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
+			debounce-interval = <5>;
+			linux,code = <6>;
+			linux,input-type = <5>; /* EV_SW */
+		};
+		head {
+			label = "head";
+			gpios = <&gpio3 22 GPIO_ACTIVE_HIGH>;
+			debounce-interval = <60>; /* ignore pulses when head reboots */
+			linux,code = <7>;
+			linux,input-type = <5>; /* EV_SW */
+		};
+	};
+
+	/* stepper driver */
+	cnc {
+		compatible = "glowforge,cnc";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_cnc>;
+		latch-reset-gpio   = <&gpio1 7 0>; /* BUTTON_LATCH_RST */
+		z-dir-gpio         = <&gpio2 17 0>;
+		y1-dir-gpio        = <&gpio2 18 0>;
+		x-dir-gpio         = <&gpio2 19 0>;
+		y1-step-gpio       = <&gpio2 20 0>;
+		z-step-gpio        = <&gpio2 21 0>;
+		x-step-gpio        = <&gpio2 22 0>;
+		y2-dir-gpio        = <&gpio2 28 0>;
+		y2-step-gpio       = <&gpio2 29 0>;
+		laser-enable-gpio  = <&gpio2 30 0>;
+		laser-on-head-gpio = <&gpio2 31 0>;
+		x-mode1-gpio       = <&gpio3 1 0>;
+		y1-enable-gpio     = <&gpio3 2 0>;
+		x-mode2-gpio       = <&gpio3 3 0>;
+		y-mode0-gpio       = <&gpio3 4 0>;
+		x-mode0-gpio       = <&gpio3 5 0>;
+		x-home-gpio        = <&gpio3 6 0>;
+		y-decay-gpio       = <&gpio3 7 0>;
+		y1-fault-gpio      = <&gpio3 8 0>;
+		y2-home-gpio       = <&gpio3 9 0>;
+		y1-home-gpio       = <&gpio3 10 0>;
+		y2-enable-gpio     = <&gpio3 11 0>;
+		y-mode1-gpio       = <&gpio3 12 0>;
+		y-mode2-gpio       = <&gpio3 13 0>;
+		y2-fault-gpio      = <&gpio3 14 0>;
+		sleep-gpio         = <&gpio3 16 0>;
+		z-enable-gpio      = <&gpio3 17 0>; /* NC; unused */
+		reset-gpio         = <&gpio3 18 0>;
+		x-decay-gpio       = <&gpio3 23 0>;
+		charge-pump-gpio   = <&gpio3 24 0>;
+		x-fault-gpio       = <&gpio3 26 0>;
+		x-enable-gpio      = <&gpio3 27 0>;
+		beam-reset-gpio    = <&gpio7 13 0>; /* unused; only v13 and v14 */
+		laser-pwm          = <1>;
+		timer              = <&epit1>;
+		sdma-params        = <26 0xe00>;
+	};
+
+	/* thermal */
+	thermal {
+		compatible = "glowforge,thermal";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_thermal>;
+		intake1-tach-gpio = <&gpio4 20 0>;
+		intake2-tach-gpio = <&gpio4 23 0>;
+		exhaust-tach-gpio = <&gpio2 8 0>;
+		water-pump-gpio   = <&gpio6 8 0>;
+		water-heater-gpio = <&gpio7 9 0>; 
+		tec-gpio          = <&gpio6 10 0>;
+		intake-pwm        = <0>;
+		exhaust-pwm       = <2>;
+	};
+};
+
+&epit1 {
+	compatible = "fsl,imx6qdl-epit";
+	id = <0>;
+	clocks = <&clks IMX6QDL_CLK_EPIT1>;
+	clock-names = "epit1";
+	sdma-event = <16>;
+};
+
+&epit2 {
+	compatible = "fsl,imx6qdl-epit";
+	id = <1>;
+	clocks = <&clks IMX6QDL_CLK_EPIT2>;
+	clock-names = "epit2";
+	sdma-event = <9>; /* note: requires bit 5 set in IOMUXC_GPR0 */
+	sdma-event-select = <&gpr 0 0x20 0x20>;
+};
+
+&fec {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_enet>;
+	phy-mode = "rmii";
+	phy-reset-gpios = <&gpio5 16 GPIO_ACTIVE_LOW>;
+/*	interrupts-extended = <&gpio5 12 0x04>, <&intc 0 119 0x4>;*/ /*TODO: causes panic on boot*/
+	status = "okay";
+};
+
+&hdmi_core {
+	ipu_id = <0>;
+	disp_id = <0>;
+	status = "okay";
+};
+
+&hdmi_video {
+	fsl,phy_reg_vlev = <0x0294>;
+	fsl,phy_reg_cksymtx = <0x800d>;
+	status = "okay";
+};
+
+&hdmi_cec {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hdmi>;
+	status = "okay";
+};
+
+&ecspi2 {
+	fsl,spi-num-chipselects = <1>;
+	cs-gpios = <&gpio4 16 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_ecspi2>;
+	status = "okay";
+	dmas = <&sdma 5 7 1>, <&sdma 6 7 2>; /* from latest upstream device tree */
+	dma-names = "rx", "tx";
+
+	pic: spi@0 {
+		compatible = "spidev", "glowforge,pic";
+		/* Datasheet indicates max SCLK frequency is about 3.44MHz */
+		spi-max-frequency = <3000000>;
+		reg = <0>;
+	};
+};
+
+/* lid camera I2C */
+&i2c1 {
+	clock-frequency = <400000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c1>;
+	status = "okay";
+	ov5648_mipi: ov5648_mipi@36 {
+		compatible = "ovti,ov5648_mipi";
+		reg = <0x36>;
+		clocks = <&clks 0>;
+		clock-names = "csi_mclk";
+		sel-gpios = <&gpio7 10 GPIO_ACTIVE_HIGH>;
+		default-state = "off"; /* off=camera A, on=camera B */
+		ipu_id = <0>;
+		csi_id = <1>;
+		mclk = <25000000>;
+		mclk_source = <0>;
+		pinctrl-names = "default";
+		extended-buffer;
+	};
+};
+
+/* HDMI i2c */
+&i2c2 {
+	clock-frequency = <100000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c2>;
+	status = "okay";
+
+	ddc: imx6_hdmi_i2c@50 {
+		compatible = "fsl,imx6-hdmi-i2c";
+		reg = <0x50>;
+	};
+};
+
+/* Head I2C */
+&i2c4 {
+	clock-frequency = <100000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c4>;
+	status = "okay";
+	/* Slave camera description (only for development purposes) */
+	ov5648_mipi_slave: ov5648_mipi_slave@36 {
+		compatible = "ovti,ov5648_mipi_slave";
+		reg = <0x36>;
+		/* Pi camera has its own 25MHz clock. */
+		clocks = <&clks 0>;
+		clock-names = "csi_mclk";
+		ipu_id = <0>;
+		csi_id = <1>;
+		mclk = <25000000>;
+		mclk_source = <0>;
+		extended-buffer;
+	};
+};
+
+&iomuxc {
+	compatible: fsl,imx6sl-iomuxc;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog>;
+
+	glowforge {
+		pinctrl_hog: hog {
+			fsl,pins = <
+				MX6QDL_PAD_CSI0_DAT8__GPIO5_IO26  0x13059 /* WL_EN */
+				MX6QDL_PAD_CSI0_DAT18__GPIO6_IO04 0x13059 /* WL_IRQ */
+				/* GPIO2_IO16 NC */
+				/* GPIO3_IO00 NC */
+				MX6QDL_PAD_EIM_DA15__GPIO3_IO15   0x1b0b0  /* NC */
+				MX6QDL_PAD_EIM_D17__GPIO3_IO17    0x1b0b0  /* NC */
+			>;
+		};
+
+		pinctrl_uart1: glowforge_uart1 {
+			fsl,pins = <
+				MX6QDL_PAD_CSI0_DAT10__UART1_TX_DATA 0x1b0b1
+				MX6QDL_PAD_CSI0_DAT11__UART1_RX_DATA 0x1b0b1
+			>;
+		};
+
+		pinctrl_uart2: glowforge_uart2 {
+			fsl,pins = <
+				MX6QDL_PAD_SD4_DAT7__UART2_TX_DATA 0x1b0b1
+				MX6QDL_PAD_SD4_DAT4__UART2_RX_DATA 0x1b0b1
+			>;
+		};
+
+		pinctrl_ecspi2: glowforge_ecspi2 {
+			fsl,pins = <
+				MX6QDL_PAD_EIM_OE__ECSPI2_MISO      0x100b1
+				MX6QDL_PAD_EIM_CS1__ECSPI2_MOSI     0x100b1
+				MX6QDL_PAD_EIM_CS0__ECSPI2_SCLK     0x100b1
+				MX6QDL_PAD_DI0_DISP_CLK__GPIO4_IO16 0x000b1
+			>;
+		};
+
+		pinctrl_enet: glowforge_enet {
+			fsl,pins = <
+				MX6QDL_PAD_ENET_MDIO__ENET_MDIO     0x1b0b0
+				MX6QDL_PAD_ENET_MDC__ENET_MDC       0x1b0b0
+				MX6QDL_PAD_ENET_CRS_DV__ENET_RX_EN  0x1b0b0
+				MX6QDL_PAD_ENET_RX_ER__ENET_RX_ER   0x1b0b0
+				MX6QDL_PAD_ENET_TX_EN__ENET_TX_EN   0x1b0b0
+				MX6QDL_PAD_ENET_RXD0__ENET_RX_DATA0 0x1b0b0
+				MX6QDL_PAD_ENET_RXD1__ENET_RX_DATA1 0x1b0b0
+				MX6QDL_PAD_ENET_TXD0__ENET_TX_DATA0 0x1b0b0
+				MX6QDL_PAD_ENET_TXD1__ENET_TX_DATA1 0x1b0b0
+				MX6QDL_PAD_GPIO_16__ENET_REF_CLK 0x4001b0a8	/* SION enabled */
+				MX6QDL_PAD_DISP0_DAT22__GPIO5_IO16  0x000b0	/* phy reset */
+				MX6QDL_PAD_DISP0_DAT18__GPIO5_IO12  0x000b1	/* IRQ */
+			>;
+		};
+
+		pinctrl_hdmi: glowforge_hdmi {
+			fsl,pins = <
+				MX6QDL_PAD_KEY_ROW2__HDMI_TX_CEC_LINE 0x1f8b0
+			>;
+		};
+
+		pinctrl_i2c1: glowforge_i2c1 {
+			fsl,pins = <
+				MX6QDL_PAD_EIM_D21__I2C1_SCL   0x4001b8b1	/* SION enabled */
+				MX6QDL_PAD_EIM_D28__I2C1_SDA   0x4001b8b1	/* SION enabled */
+				MX6QDL_PAD_SD4_CLK__GPIO7_IO10    0x1b0b0	/* CAM_SEL */
+			>;
+		};
+
+		pinctrl_i2c2: glowforge_i2c2 {
+			fsl,pins = <
+				MX6QDL_PAD_KEY_COL3__I2C2_SCL   0x4001b8b1	/* SION enabled */
+				MX6QDL_PAD_KEY_ROW3__I2C2_SDA   0x4001b8b1	/* SION enabled */
+			>;
+		};
+
+		pinctrl_i2c4: glowforge_i2c4 {
+			fsl,pins = <
+				MX6QDL_PAD_NANDF_WP_B__I2C4_SCL 0x4001b8b1	/* OD, SION enabled */
+				MX6QDL_PAD_NANDF_CS3__I2C4_SDA  0x4001b8b1	/* OD, SION enabled */
+			>;
+		};
+
+		pinctrl_cnc: glowforge_cnc {
+			fsl,pins = <
+				MX6QDL_PAD_GPIO_7__GPIO1_IO07	   0x1b0b0	/* BUTTON_LATCH_RST */
+				/* GPIO2_IO16 NC */
+				MX6QDL_PAD_EIM_A21__GPIO2_IO17     0x1b0b0	/* STEP_Z_DIR */
+				MX6QDL_PAD_EIM_A20__GPIO2_IO18     0x1b0b0	/* Y1_DIR */
+				MX6QDL_PAD_EIM_A19__GPIO2_IO19     0x1b0b0	/* X_DIR */
+				MX6QDL_PAD_EIM_A18__GPIO2_IO20     0x1b0b0	/* Y1_STEP */
+				MX6QDL_PAD_EIM_A17__GPIO2_IO21     0x1b0b0	/* STEP_Z_STEP */
+				MX6QDL_PAD_EIM_A16__GPIO2_IO22     0x1b0b0	/* X_STEP */
+				MX6QDL_PAD_EIM_EB0__GPIO2_IO28     0x1b0b0	/* Y2_DIR */
+				MX6QDL_PAD_EIM_EB1__GPIO2_IO29     0x1b0b0	/* Y2_STEP */
+				MX6QDL_PAD_EIM_EB2__GPIO2_IO30  0x4001b0b0	/* LASER_ENABLE, SION enabled */
+				MX6QDL_PAD_EIM_EB3__GPIO2_IO31     0x1b0b0	/* LASER_ON_HEAD */
+				/* GPIO3_IO00 NC */
+				MX6QDL_PAD_EIM_DA1__GPIO3_IO01  0x4001b0b0	/* X_MODE1, SION enabled */
+				MX6QDL_PAD_EIM_DA2__GPIO3_IO02     0x1b0b0	/* Y1_ENBL */
+				MX6QDL_PAD_EIM_DA3__GPIO3_IO03  0x4001b0b0	/* X_MODE2, SION enabled */
+				MX6QDL_PAD_EIM_DA4__GPIO3_IO04  0x4001b0b0	/* Y_MODE0, SION enabled */
+				MX6QDL_PAD_EIM_DA5__GPIO3_IO05  0x4001b0b0	/* X_MODE0, SION enabled */
+				MX6QDL_PAD_EIM_DA6__GPIO3_IO06     0x100b0	/* X_HOME, no pulldown or pullup */
+				MX6QDL_PAD_EIM_DA7__GPIO3_IO07  0x4001b0b0	/* Y_DECAY, SION enabled */
+				MX6QDL_PAD_EIM_DA8__GPIO3_IO08     0x1b0b0	/* Y1_FAULT */
+				MX6QDL_PAD_EIM_DA9__GPIO3_IO09     0x1b0b0	/* Y2_HOME */
+				MX6QDL_PAD_EIM_DA10__GPIO3_IO10    0x1b0b0	/* Y1_HOME */
+				MX6QDL_PAD_EIM_DA11__GPIO3_IO11    0x1b0b0	/* Y2_ENBL */
+				MX6QDL_PAD_EIM_DA12__GPIO3_IO12 0x4001b0b0	/* Y_MODE1, SION enabled */
+				MX6QDL_PAD_EIM_DA13__GPIO3_IO13 0x4001b0b0	/* Y_MODE2, SION enabled */
+				MX6QDL_PAD_EIM_DA14__GPIO3_IO14    0x1b0b0	/* Y2_FAULT */
+				/* MX6QDL_PAD_EIM_DA15__GPIO3_IO15         NC */
+				MX6QDL_PAD_EIM_D16__GPIO3_IO16     0x1b0b0	/* STEP_SLEEP */
+				/* MX6QDL_PAD_EIM_D17__GPIO3_IO17        NC */
+				MX6QDL_PAD_EIM_D18__GPIO3_IO18     0x1b0b0	/* /STEP_RESET */
+				MX6QDL_PAD_EIM_D23__GPIO3_IO23  0x4001b0b0	/* X_DECAY, SION enabled */
+				MX6QDL_PAD_EIM_D24__GPIO3_IO24  0x4001b0b0	/* CHARGE_PUMP, SION enabled */
+				MX6QDL_PAD_EIM_D26__GPIO3_IO26     0x100b0	/* /X_FAULT, no pulldown or pullup */
+				MX6QDL_PAD_EIM_D27__GPIO3_IO27     0x1b0b0	/* X_ENBL */
+				MX6QDL_PAD_KEY_ROW0__GPIO4_IO07    0x100b0	/* !BEAM_DET_TIMEOUT, no pulldown or pullup */
+				MX6QDL_PAD_KEY_COL1__GPIO4_IO08    0x100b0	/* !BEAM_DET_XOR, no pulldown or pullup */
+				MX6QDL_PAD_KEY_COL2__GPIO4_IO10    0x100b0	/* BEAM_DET_ERR, no pulldown or pullup */
+				MX6QDL_PAD_KEY_ROW4__GPIO4_IO15    0x100b0	/* !BEAM_DET, no pulldown or pullup */
+				MX6QDL_PAD_GPIO_18__GPIO7_IO13     0x1b0b0	/* BEAM_DET_LATCH_RST */
+			>;
+		};
+
+		pinctrl_thermal: glowforge_thermal {
+			fsl,pins = <
+				MX6QDL_PAD_DI0_PIN4__GPIO4_IO20      0x1b0b0	/* FAN_TACH_INTAKE1 */
+				MX6QDL_PAD_DISP0_DAT2__GPIO4_IO23    0x1b0b0	/* FAN_TACH_INTAKE2 */
+				MX6QDL_PAD_NANDF_ALE__GPIO6_IO08  0x4001b0b0	/* WATER_ON, SION enabled */
+				MX6QDL_PAD_NANDF_RB0__GPIO6_IO10  0x4001b0b0	/* TEC_ON, SION enabled */
+				MX6QDL_PAD_SD4_CMD__GPIO7_IO09    0x4001b0b0	/* WATER_HEATER_ON, SION enabled */
+				MX6QDL_PAD_SD4_DAT0__GPIO2_IO08      0x1b0b0	/* FAN_TACH_EXHAUST */
+			>;
+		};
+
+		pinctrl_12v: glowforge_12v {
+			fsl,pins = <MX6QDL_PAD_DISP0_DAT14__GPIO5_IO08 0x1b0b0>;
+		};
+
+		pinctrl_40v: glowforge_40v {
+			fsl,pins = <MX6QDL_PAD_DISP0_DAT23__GPIO5_IO17 0x1b0b0>;
+		};
+
+		pinctrl_usdhc2_aux: glowforge_usdhc2_aux {
+			fsl,pins = <
+				MX6QDL_PAD_GPIO_4__GPIO1_IO04    0x1f071
+			>;
+		};
+
+		pinctrl_usdhc1: glowforge_usdhc1 {
+			fsl,pins = <
+				MX6QDL_PAD_SD1_CMD__SD1_CMD    0x17069
+				MX6QDL_PAD_SD1_CLK__SD1_CLK    0x10069
+				MX6QDL_PAD_SD1_DAT0__SD1_DATA0 0x17069
+				MX6QDL_PAD_SD1_DAT1__SD1_DATA1 0x17069
+				MX6QDL_PAD_SD1_DAT2__SD1_DATA2 0x17069
+				MX6QDL_PAD_SD1_DAT3__SD1_DATA3 0x17069
+			>;
+		};
+
+		pinctrl_usdhc2: glowforge_usdhc2 {
+			fsl,pins = <
+				MX6QDL_PAD_SD2_CMD__SD2_CMD    0x17059
+				MX6QDL_PAD_SD2_CLK__SD2_CLK    0x10059
+				MX6QDL_PAD_SD2_DAT0__SD2_DATA0 0x17059
+				MX6QDL_PAD_SD2_DAT1__SD2_DATA1 0x17059
+				MX6QDL_PAD_SD2_DAT2__SD2_DATA2 0x17059
+				MX6QDL_PAD_SD2_DAT3__SD2_DATA3 0x13059
+			>;
+		};
+
+		pinctrl_usdhc3: usdhc3grp {
+			fsl,pins = <
+				MX6QDL_PAD_SD3_CMD__SD3_CMD    0x17059
+				MX6QDL_PAD_SD3_CLK__SD3_CLK    0x10059
+				MX6QDL_PAD_SD3_DAT0__SD3_DATA0 0x17059
+				MX6QDL_PAD_SD3_DAT1__SD3_DATA1 0x17059
+				MX6QDL_PAD_SD3_DAT2__SD3_DATA2 0x17059
+				MX6QDL_PAD_SD3_DAT3__SD3_DATA3 0x17059
+				MX6QDL_PAD_SD3_DAT4__SD3_DATA4 0x17059
+				MX6QDL_PAD_SD3_DAT5__SD3_DATA5 0x17059
+				MX6QDL_PAD_SD3_DAT6__SD3_DATA6 0x17059
+				MX6QDL_PAD_SD3_DAT7__SD3_DATA7 0x17059
+				MX6QDL_PAD_SD3_RST__SD3_RESET  0x1b0b0
+			>;
+		};
+
+		pinctrl_pwm1: glowforge_pwm1 {
+			fsl,pins = <
+				MX6QDL_PAD_DISP0_DAT8__PWM1_OUT 0x1b0b8	/* FAN_PWM_INTAKE, strong drive */
+			>;
+		};
+
+		pinctrl_pwm2: glowforge_pwm2 {
+			fsl,pins = <
+				MX6QDL_PAD_DISP0_DAT9__PWM2_OUT 0x1b0b8	/* LASER_PWM, strong drive */
+			>;
+		};
+
+		pinctrl_pwm3: glowforge_pwm3 {
+			fsl,pins = <
+				MX6QDL_PAD_SD4_DAT1__PWM3_OUT  0x1b0b8 /* AUDIO_OUT, strong drive */
+				MX6QDL_PAD_EIM_A24__GPIO5_IO04 0x1b0b0 /* SPKR_EN */
+			>;
+		};
+
+		pinctrl_pwm4: glowforge_pwm4 {
+			fsl,pins = <
+				MX6QDL_PAD_SD4_DAT2__PWM4_OUT 0x1b0b8	/* FAN_PWM_EXHAUST, strong drive */
+			>;
+		};
+
+		pinctrl_switches: glowforge_switches {
+			fsl,pins = <
+				MX6QDL_PAD_KEY_COL4__GPIO4_IO14    0x100b0	/* !DOOR_SW1 */
+				MX6QDL_PAD_GPIO_6__GPIO1_IO06      0x100b0	/* !DOOR_SW2 */
+				MX6QDL_PAD_KEY_ROW1__GPIO4_IO09    0x100b0	/* !PAUSE (button pressed) */
+				MX6QDL_PAD_GPIO_0__GPIO1_IO00      0x100b0      /* !DOOR_SW */
+				MX6QDL_PAD_KEY_COL0__GPIO4_IO06    0x100b0	/* ESTOP */
+				MX6QDL_PAD_GPIO_9__GPIO1_IO09      0x100b0	/* INTERLOCK */
+				MX6QDL_PAD_GPIO_2__GPIO1_IO02      0x100b0	/* INTERLOCK_LATCH, no pulldown or pullup */
+				MX6QDL_PAD_EIM_D22__GPIO3_IO22     0x1b0b0	/* HEAD_IRQ, pullup */
+			>;
+		};
+
+		pinctrl_outputs: glowforge_outputs {
+			fsl,pins = <
+				MX6QDL_PAD_NANDF_CLE__GPIO6_IO07  0x1b0b0	/* CAM_!OE */
+				MX6QDL_PAD_GPIO_19__GPIO4_IO05    0x100b0	/* INTERLOCK_LATCH_RESET, no pulldown or pullup */
+			>;
+		};
+	};
+};
+
+&ssi1 {
+	fsl,mode = "i2s-slave";
+	status = "okay";
+};
+
+&uart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart1>;
+	status = "okay";
+};
+
+&uart2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart2>;
+	fsl,irda-mode;
+	status = "okay";
+};
+
+/* WL1805 */
+&usdhc1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc1>;
+	bus-width = <4>;
+	no-1-8-v;
+	keep-power-in-suspend;
+	enable-sdio-wakeup;
+	vmmc-supply = <&reg_wlan>;
+	non-removable;    /* non-removable is not a variable, the fact it is */
+	                  /* listed is all that is used by driver  */
+	cap-power-off-card;
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	wlcore: wlcore@0 {
+		compatible = "ti,wl1805";
+		reg = <2>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <4 IRQ_TYPE_EDGE_RISING>;
+	};
+};
+
+/* SD card */
+&usdhc2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <
+		&pinctrl_usdhc2_aux
+		&pinctrl_usdhc2
+	>;
+	vmmc-supply = <&reg_3p3v>;
+	cd-gpios = <&gpio1 4 0>;
+	status = "okay";
+};
+
+/* eMMC */
+&usdhc3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc3>;
+	bus-width = <8>;
+	non-removable;
+	no-1-8-v;
+	keep-power-in-suspend;
+	cd-gpios = <>;
+	wp-gpios = <>;
+	status = "okay";
+};
+
+&gpc {
+	fsl,cpu_pupscr_sw2iso = <0xf>;
+	fsl,cpu_pupscr_sw = <0xf>;
+	fsl,cpu_pdnscr_iso2sw = <0x1>;
+	fsl,cpu_pdnscr_iso = <0x1>;
+};
+
+&pwm1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm1>;
+	status = "okay";
+};
+
+&pwm2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm2>;
+	status = "okay";
+	fsl,extra-prescale = <13>;
+};
+
+&pwm3 {
+	compatible = "glowforge,imx-pwm-audio";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm3>;
+	status = "okay";
+	enable-gpio = <&gpio5 4 0>;
+	timer = <&epit2>;
+	sdma-params = <25 0xdc0>; /* channel and script load address */
+};
+
+&pwm4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm4>;
+	status = "okay";
+};
+
+&mipi_csi {
+	ipu_id = <0>;
+	csi_id = <1>;
+	v_channel = <0>;
+	lanes = <2>;
+	mipi_dphy_clk = <0x28>;
+	status = "okay";
+};
+
+&wdog1 {
+	fsl,default-timeout = <65>;
+	fsl,default-pretimeout = <5>;
+	fsl,panic-on-pretimeout;
+};

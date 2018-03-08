@@ -1,0 +1,13 @@
+diff --git a/sbin/update-ca-certificates b/sbin/update-ca-certificates
+index 00f80c7..4f35ef3 100755
+--- a/sbin/update-ca-certificates
++++ b/sbin/update-ca-certificates
+@@ -127,7 +127,7 @@ add() {
+                                                   -e 's/,/_/g').pem"
+   if ! test -e "$PEM" || [ "$(readlink "$PEM")" != "${CERT##$SYSROOT}" ]
+   then
+-    ln -sf "${CERT##$SYSROOT}" "$PEM"
++    ln -sf "../../..${CERT##$SYSROOT}" "$PEM"
+     echo "+$PEM" >> "$ADDED"
+   fi
+   # Add trailing newline to certificate, if it is missing (#635570)

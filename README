@@ -1,0 +1,8 @@
+Yocto Layer for the Glowforge Platform (GPL recipes)
+====================================================
+
+Copyright (C) 2015-2018 Glowforge, Inc. <opensource@glowforge.com>
+
+This layer provides recipes, configuration files, and patches for
+GPLv2-licensed software in Glowforge's Linux distribution.
+

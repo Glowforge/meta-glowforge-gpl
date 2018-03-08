@@ -1,0 +1,249 @@
+Index: git/src/v4l2src/v4l2src.c
+===================================================================
+--- git.orig/src/v4l2src/v4l2src.c	2016-08-17 16:10:36.010980064 -0600
++++ git/src/v4l2src/v4l2src.c	2016-08-18 11:01:57.359240630 -0600
+@@ -39,6 +39,10 @@
+ #define DEFAULT_INPUT 1
+ #define DEFAULT_DEVICE "/dev/video0"
+ #define DEFAULT_QUEUE_SIZE 6
++#define DEFAULT_CROP_TOP 0
++#define DEFAULT_CROP_LEFT 0
++#define DEFAULT_CROP_WIDTH  0
++#define DEFAULT_CROP_HEIGHT 0
+ 
+ enum
+ {
+@@ -49,6 +53,10 @@
+ 	IMX_V4L2SRC_INPUT,
+ 	IMX_V4L2SRC_DEVICE,
+ 	IMX_V4L2SRC_QUEUE_SIZE,
++	IMX_V4L2SRC_CROP_TOP,
++	IMX_V4L2SRC_CROP_LEFT,
++	IMX_V4L2SRC_CROP_WIDTH,
++	IMX_V4L2SRC_CROP_HEIGHT,
+ };
+ 
+ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE(
+@@ -79,6 +87,8 @@
+ 	struct v4l2_format fmt = {0};
+ 	struct v4l2_streamparm parm = {0};
+ 	struct v4l2_frmsizeenum fszenum = {0};
++    struct v4l2_crop crop = {0};
++    struct v4l2_cropcap cropcap = {0};
+ 	v4l2_std_id id;
+ 	gint input;
+ 	gint fd_v4l;
+@@ -147,6 +157,60 @@
+ 		close(fd_v4l);
+ 		return -1;
+ 	}
++    /* Set up crop */
++    if ((v4l2src->crop_width  != DEFAULT_CROP_WIDTH) && 
++       (v4l2src->crop_height != DEFAULT_CROP_HEIGHT)) {
++
++        memset (&cropcap, 0, sizeof (cropcap));
++        cropcap.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
++
++        if (ioctl (fd_v4l, VIDIOC_CROPCAP, &cropcap) < 0) {
++            GST_ERROR_OBJECT(v4l2src, "VIDIOC_CROPCAP failed: %s", strerror(errno));
++            close(fd_v4l);
++            return -1;
++        }
++        
++        memset (&crop, 0, sizeof (crop));
++        crop.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
++        /* defrect: default source rectangle */
++        crop.c = cropcap.defrect;
++
++        crop.c.width  = v4l2src->crop_width;
++        crop.c.height = v4l2src->crop_height;
++        crop.c.left   = v4l2src->crop_left;
++        crop.c.top    = v4l2src->crop_top; 
++
++        GST_DEBUG_OBJECT(v4l2src, "Set crop:  width: %d height %d left %d top %d\n",
++            crop.c.width,
++            crop.c.height,
++            crop.c.left,
++            crop.c.top
++        );
++        
++        if (ioctl (fd_v4l, VIDIOC_S_CROP, &crop) < 0) {
++            GST_ERROR_OBJECT(v4l2src, "VIDIOC_S_CROP failed: %s", strerror(errno));
++            close(fd_v4l);
++            return -1;
++        }
++        
++        if (ioctl (fd_v4l, VIDIOC_G_CROP, &crop) < 0) {
++            GST_ERROR_OBJECT(v4l2src, "VIDIOC_G_CROP failed: %s", strerror(errno));
++            close(fd_v4l);
++            return -1;
++        }
++        /* Read the final values applied */
++        GST_DEBUG_OBJECT(v4l2src, "Get crop:  width: %d height %d left %d top %d\n",
++            crop.c.width,
++            crop.c.height,
++            crop.c.left,
++            crop.c.top
++        );
++        /* Update crop values */
++        v4l2src->crop_width  = crop.c.width;
++        v4l2src->crop_height = crop.c.height; 
++        v4l2src->crop_left   = crop.c.left; 
++        v4l2src->crop_top    = crop.c.top;
++    }
+ 
+ 	return fd_v4l;
+ }
+@@ -284,6 +348,8 @@
+ 	const gchar *pixel_format = NULL;
+ 	const gchar *interlace_mode = "progressive";
+ 	struct v4l2_format fmt;
++    int width;
++    int height;
+  
+     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+ 	if (ioctl(GST_IMX_FD_OBJECT_GET_FD(v4l2src->fd_obj_v4l), VIDIOC_G_FMT, &fmt) < 0) {
+@@ -308,14 +374,24 @@
+ 
+ 	if (fmt.fmt.pix.field == V4L2_FIELD_INTERLACED)
+ 		interlace_mode = "interleaved";
++        
++    if ((v4l2src->crop_width  != DEFAULT_CROP_WIDTH) && 
++       (v4l2src->crop_height != DEFAULT_CROP_HEIGHT)) {
++           width = v4l2src->crop_width;
++           height = v4l2src->crop_height;
++       }
++       else {
++           width = v4l2src->capture_width;
++           height = v4l2src->capture_height;
++       }
+ 
+ 	/* not much to negotiate;
+ 	 * we already performed setup, so that is what will be streamed */
+     if (v4l2src->capture_format == DEFAULT_CAPTURE_FORMAT) {
+ 	    caps = gst_caps_new_simple("video/x-raw",
+ 			"format", G_TYPE_STRING, pixel_format,
+-			"width", G_TYPE_INT, v4l2src->capture_width,
+-			"height", G_TYPE_INT, v4l2src->capture_height,
++            "width", G_TYPE_INT, width,
++            "height", G_TYPE_INT, height,
+ 			"interlace-mode", G_TYPE_STRING, interlace_mode,
+ 			"framerate", GST_TYPE_FRACTION, v4l2src->fps_n, v4l2src->fps_d,
+ 			"pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
+@@ -324,8 +400,8 @@
+ 	else {
+ 		caps = gst_caps_new_simple("video/x-bayer",
+ 				"format", G_TYPE_STRING, pixel_format,
+-				"width", G_TYPE_INT, v4l2src->capture_width,
+-				"height", G_TYPE_INT, v4l2src->capture_height,
++                "width", G_TYPE_INT, width,
++                "height", G_TYPE_INT, height,
+                 "interlace-mode", G_TYPE_STRING, interlace_mode,
+ 				"framerate", GST_TYPE_FRACTION, v4l2src->fps_n, v4l2src->fps_d,
+ 				"pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
+@@ -411,9 +487,21 @@
+ 			v4l2src->devicename = g_strdup(g_value_get_string(value));
+ 			break;
+ 
+-		case IMX_V4L2SRC_QUEUE_SIZE:
+-			v4l2src->queue_size = g_value_get_int(value);
+-			break;
++        case IMX_V4L2SRC_QUEUE_SIZE:
++            v4l2src->queue_size = g_value_get_int(value);
++            break;
++        case IMX_V4L2SRC_CROP_TOP:
++            v4l2src->crop_top = g_value_get_int(value);
++            break;
++        case IMX_V4L2SRC_CROP_LEFT:
++            v4l2src->crop_left = g_value_get_int(value);
++            break;
++        case IMX_V4L2SRC_CROP_WIDTH:
++            v4l2src->crop_width = g_value_get_int(value);
++            break;
++        case IMX_V4L2SRC_CROP_HEIGHT:
++            v4l2src->crop_height = g_value_get_int(value);
++            break;
+ 
+ 		default:
+ 			G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
+@@ -451,6 +539,19 @@
+ 		case IMX_V4L2SRC_QUEUE_SIZE:
+ 			g_value_set_int(value, v4l2src->queue_size);
+ 			break;
++            
++        case IMX_V4L2SRC_CROP_TOP:
++            g_value_set_int(value, v4l2src->crop_top);
++            break;
++        case IMX_V4L2SRC_CROP_LEFT:
++            g_value_set_int(value, v4l2src->crop_left);
++            break;
++        case IMX_V4L2SRC_CROP_WIDTH:
++            g_value_set_int(value, v4l2src->crop_width);
++            break;
++        case IMX_V4L2SRC_CROP_HEIGHT:
++            g_value_set_int(value, v4l2src->crop_height);
++            break;
+ 
+ 		default:
+ 			G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
+@@ -467,6 +568,12 @@
+ 	v4l2src->input = DEFAULT_INPUT;
+ 	v4l2src->devicename = g_strdup(DEFAULT_DEVICE);
+ 	v4l2src->queue_size = DEFAULT_QUEUE_SIZE;
++    
++    v4l2src->crop_width  = DEFAULT_CROP_WIDTH;
++    v4l2src->crop_height = DEFAULT_CROP_HEIGHT;
++    v4l2src->crop_top    = DEFAULT_CROP_TOP; 
++    v4l2src->crop_left   = DEFAULT_CROP_LEFT;
++    
+ 	v4l2src->fd_obj_v4l = NULL;
+ 
+ 	gst_base_src_set_format(GST_BASE_SRC(v4l2src), GST_FORMAT_TIME);
+@@ -531,6 +638,30 @@
+ 				"Number of V4L2 buffers to request",
+ 				0, G_MAXINT, DEFAULT_QUEUE_SIZE,
+ 				G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++                
++        g_object_class_install_property(gobject_class, IMX_V4L2SRC_CROP_TOP,
++            g_param_spec_int("crop-top", "Crop top",
++                "Window crop top position",
++                0, G_MAXINT, DEFAULT_CROP_TOP,
++                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++                
++        g_object_class_install_property(gobject_class, IMX_V4L2SRC_CROP_LEFT,
++            g_param_spec_int("crop-left", "Crop left",
++                "Window crop left position",
++                0, G_MAXINT, DEFAULT_CROP_LEFT,
++                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++                
++        g_object_class_install_property(gobject_class, IMX_V4L2SRC_CROP_WIDTH,
++            g_param_spec_int("crop-width", "Crop width",
++                "Window crop width dimension",
++                0, G_MAXINT, DEFAULT_CROP_WIDTH,
++                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++                
++        g_object_class_install_property(gobject_class, IMX_V4L2SRC_CROP_HEIGHT,
++            g_param_spec_int("crop-height", "Crop height",
++                "Window crop height dimension",
++                0, G_MAXINT, DEFAULT_CROP_HEIGHT,
++                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+ 
+ 	basesrc_class->negotiate = gst_imx_v4l2src_negotiate;
+ 	basesrc_class->get_caps = gst_imx_v4l2src_get_caps;
+Index: git/src/v4l2src/v4l2src.h
+===================================================================
+--- git.orig/src/v4l2src/v4l2src.h	2016-05-12 19:31:44.839355605 -0600
++++ git/src/v4l2src/v4l2src.h	2016-08-18 11:03:07.903240900 -0600
+@@ -57,6 +57,12 @@
+ 	gint fps_n;
+ 	gint fps_d;
+ 	gint input;
++    /* Crop properties */
++    gint crop_width;
++    gint crop_height;
++    gint crop_top;
++    gint crop_left;
++    
+ 	char *devicename;
+ 	int queue_size;
+ };

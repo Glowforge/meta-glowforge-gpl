@@ -1,0 +1,52 @@
+diff --git a/src/driver/drivers/net/wireless/ti/wlcore/main.c b/src/driver/drivers/net/wireless/ti/wlcore/main.c
+index 3d1d723..3ebff34 100644
+--- a/src/driver/drivers/net/wireless/ti/wlcore/main.c
++++ b/src/driver/drivers/net/wireless/ti/wlcore/main.c
+@@ -44,6 +44,9 @@
+ #include "sysfs.h"
+ #include "version.h"
+ 
++/* (mjs) GPIO interferes with stepper driver; don't use it */
++#define ENABLE_TIME_SYNC_GPIO 0
++
+ #define WL1271_BOOT_RETRIES 3
+ 
+ static char *fwlog_param;
+@@ -6160,9 +6163,11 @@ static void wl1271_unregister_hw(struct wl1271 *wl)
+ void wlcore_trigger_time_sync(struct wl1271 *wl)
+ {
+ 	wl->time_sync.gpio_ktime = ktime_get();
++#if ENABLE_TIME_SYNC_GPIO
+ 	gpio_set_value(wl->time_sync.gpio, 1);
+ 	udelay(1);
+ 	gpio_set_value(wl->time_sync.gpio, 0);
++#endif
+ }
+ EXPORT_SYMBOL_GPL(wlcore_trigger_time_sync);
+ 
+@@ -6449,6 +6454,7 @@ struct ieee80211_hw *wlcore_alloc_hw(size_t priv_size, u32 aggr_buf_size,
+ 		goto err_mbox;
+ 	}
+ 
++#if ENABLE_TIME_SYNC_GPIO
+ 	/* time sync */
+ 	wl->time_sync.gpio = 66;
+ 	ret = gpio_request_one(wl->time_sync.gpio, GPIOF_DIR_OUT, "time_sync");
+@@ -6457,6 +6463,7 @@ struct ieee80211_hw *wlcore_alloc_hw(size_t priv_size, u32 aggr_buf_size,
+ 		goto err_buffer_32;
+ 	}
+ 	wl1271_info("Time Sync: gpio requested");
++#endif
+ 
+ 	hrtimer_init(&wl->time_sync.timer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
+ 	wl->time_sync.timer.function = &wlcore_time_sync_hrtimer_cb;
+@@ -6515,7 +6522,9 @@ int wlcore_free_hw(struct wl1271 *wl)
+ 
+ 	wlcore_sysfs_free(wl);
+ 
++#if ENABLE_TIME_SYNC_GPIO
+ 	gpio_free(wl->time_sync.gpio);
++#endif
+ 
+ 	kfree(wl->buffer_32);
+ 	kfree(wl->mbox);

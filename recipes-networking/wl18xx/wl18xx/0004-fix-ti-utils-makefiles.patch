@@ -1,0 +1,32 @@
+diff --git a/src/ti_utils/Makefile b/src/ti_utils/Makefile
+index 78ed271..9cd96c0 100644
+--- a/src/ti_utils/Makefile
++++ b/src/ti_utils/Makefile
+@@ -1,5 +1,4 @@
+-CC = $(CROSS_COMPILE)gcc
+-CFLAGS = -O2 -Wall
++CFLAGS += -O2 -Wall
+ CFLAGS += -I$(NFSROOT)/usr/include -I$(NFSROOT)/include
+ 
+ ifdef NLROOT
+diff --git a/src/ti_utils/wl_logproxy/Makefile b/src/ti_utils/wl_logproxy/Makefile
+index 6a79302..f77ea7d 100644
+--- a/src/ti_utils/wl_logproxy/Makefile
++++ b/src/ti_utils/wl_logproxy/Makefile
+@@ -1,5 +1,4 @@
+-CC = $(CROSS_COMPILE)gcc
+-CFLAGS = -O2 -Wall
++CFLAGS += -O2 -Wall
+ CFLAGS += -I$(NFSROOT)/usr/include -I$(NFSROOT)/include
+ 
+ ifdef NLROOT
+diff --git a/src/ti_utils/wlconf/Makefile b/src/ti_utils/wlconf/Makefile
+index adb2d16..bc14f33 100644
+--- a/src/ti_utils/wlconf/Makefile
++++ b/src/ti_utils/wlconf/Makefile
+@@ -1,4 +1,4 @@
+-CFLAGS = -O2 -Wall
++CFLAGS += -O2 -Wall
+ 
+ OBJS = main.o crc32.o
+ 
