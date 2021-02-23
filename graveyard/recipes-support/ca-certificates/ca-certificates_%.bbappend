@@ -1,8 +1,7 @@
 FILESEXTRAPATHS_append := "${THISDIR}/${PN}"
 
-SRC_URI_remove = "file://0001-update-ca-certificates-remove-c-rehash.patch"
-
 SRC_URI_append = " \
+    file://0003-update-ca-certificates-use-c_rehash.patch \
     file://0010-update-ca-certificates-relative-pem-symlinks.patch \
     "
 

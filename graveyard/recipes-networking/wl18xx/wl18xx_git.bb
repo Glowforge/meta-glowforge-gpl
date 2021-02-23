@@ -58,6 +58,12 @@ export ARCH=${TARGET_ARCH}
 
     # initialize the workspace
     bash ./build_wl18xx.sh init R8.7_SP3
+    # use more recent wifi firmware (FW-818)
+    # (TODO 9/14/18 matt: remove this once next version of driver
+    # is officially released.)
+    cd src/fw_download
+    # pin at FW version 8.9.0.0.79
+    git checkout d153edae2a75393937da43159b7e6251c2cd01b6
 }
 
 do_compile() {
