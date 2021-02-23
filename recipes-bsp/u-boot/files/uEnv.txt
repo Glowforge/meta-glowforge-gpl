@@ -1,0 +1,1 @@
+mmcargs=setenv bootargs root=/dev/mmcblk1p2 rootfstype=ext4 raid=noautodetect audit=0 rootwait rw console=ttymxc0,115200 console=tty1 consoleblank=0 video=mxcfb0:dev=hdmi,1920x1080M@60,if=RGB24,bpp=32 dmfc=3 ahci_imx.hotplug=1 pci=nomsi loop.max_part=15

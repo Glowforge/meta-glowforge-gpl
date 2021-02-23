@@ -1,0 +1,25 @@
+From 74cd40c13d6497a4375f5cddede36a6245568aed Mon Sep 17 00:00:00 2001
+From: Matt Sarnoff <matt@glowforge.com>
+Date: Wed, 6 May 2020 13:11:58 -0700
+Subject: [PATCH] arm: imx: properly set mac addr from fuses
+
+of_get_mac_address() calls of_get_mac_addr_nvmem() if there is no
+address explicitly specified, but that function returns an ERR_PTR on
+failure, not NULL. imx6_enet_mac_init() needs to handle this case.
+---
+ arch/arm/mach-imx/common.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/mach-imx/common.c b/arch/arm/mach-imx/common.c
+index 2f644c6b2c28..338c6ddf2531 100644
+--- a/arch/arm/mach-imx/common.c
++++ b/arch/arm/mach-imx/common.c
+@@ -59,7 +59,7 @@ void __init imx6_enet_mac_init(const char *enet_compat, const char *ocotp_compat
+ 
+ 		from = enet_np;
+ 
+-		if (of_get_mac_address(enet_np))
++		if (!IS_ERR_OR_NULL(of_get_mac_address(enet_np)))
+ 			goto put_enet_node;
+ 
+ 		id = of_alias_get_id(enet_np, "ethernet");

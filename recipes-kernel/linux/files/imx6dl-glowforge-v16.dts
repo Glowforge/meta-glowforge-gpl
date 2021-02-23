@@ -5,6 +5,7 @@
 /dts-v1/;
 
 #include "imx6dl.dtsi"
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	model = "Glowforge Control Board";
@@ -21,6 +22,7 @@
 
 	aliases {
 		mxcfb0 = &mxcfb1;
+		i2c2 = &i2c4; /* code expects I2C4 to be at /dev/i2c-2 */
 	};
 
 	regulators {
@@ -272,7 +274,7 @@
 	status = "okay";
 };
 
-&hdmi_core {
+/*&hdmi_core {
 	ipu_id = <0>;
 	disp_id = <0>;
 	status = "okay";
@@ -288,7 +290,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_hdmi>;
 	status = "okay";
-};
+};*/
 
 &ecspi2 {
 	fsl,spi-num-chipselects = <1>;
@@ -296,11 +298,9 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_ecspi2>;
 	status = "okay";
-	dmas = <&sdma 5 7 1>, <&sdma 6 7 2>; /* from latest upstream device tree */
-	dma-names = "rx", "tx";
 
 	pic: spi@0 {
-		compatible = "spidev", "glowforge,pic";
+		compatible = "glowforge,pic";
 		/* Datasheet indicates max SCLK frequency is about 3.44MHz */
 		spi-max-frequency = <3000000>;
 		reg = <0>;
@@ -715,7 +715,6 @@
 };
 
 &wdog1 {
-	fsl,default-timeout = <65>;
-	fsl,default-pretimeout = <5>;
-	fsl,panic-on-pretimeout;
+	timeout-sec = <65>;
+	fsl,pretimeout-sec = <5>;
 };

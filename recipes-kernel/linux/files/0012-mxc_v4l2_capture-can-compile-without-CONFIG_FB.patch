@@ -1,0 +1,68 @@
+From 4cc2ef54332cc59a7110578e9f9daab86c96c6ca Mon Sep 17 00:00:00 2001
+From: Matt Sarnoff <matt@glowforge.com>
+Date: Fri, 22 May 2020 00:39:30 -0700
+Subject: [PATCH] mxc_v4l2_capture: can compile without CONFIG_FB
+
+don't fail to build if framebuffer support is disabled.
+---
+ .../media/platform/mxc/capture/mxc_v4l2_capture.c    | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/drivers/media/platform/mxc/capture/mxc_v4l2_capture.c b/drivers/media/platform/mxc/capture/mxc_v4l2_capture.c
+index fb72df7fd852..9b4abc3665ef 100644
+--- a/drivers/media/platform/mxc/capture/mxc_v4l2_capture.c
++++ b/drivers/media/platform/mxc/capture/mxc_v4l2_capture.c
+@@ -548,6 +548,7 @@ static int mxc_streamoff(cam_data *cam)
+  */
+ static int verify_preview(cam_data *cam, struct v4l2_window *win)
+ {
++#ifdef CONFIG_FB
+ 	int i = 0, width_bound = 0, height_bound = 0;
+ 	int *width, *height;
+ 	unsigned int ipu_ch = CHAN_NONE;
+@@ -672,6 +673,9 @@ static int verify_preview(cam_data *cam, struct v4l2_window *win)
+ 	}
+ 
+ 	return 0;
++#else
++	return -ENODEV;
++#endif
+ }
+ 
+ /*!
+@@ -683,6 +687,7 @@ static int verify_preview(cam_data *cam, struct v4l2_window *win)
+  */
+ static int start_preview(cam_data *cam)
+ {
++#ifdef CONFIG_FB
+ 	int err = 0;
+ 
+ 	pr_debug("MVC: start_preview\n");
+@@ -725,6 +730,9 @@ static int start_preview(cam_data *cam)
+ 		 cam->crop_current.width, cam->crop_current.height);
+ 
+ 	return err;
++#else
++	return -ENODEV;
++#endif
+ }
+ 
+ /*!
+@@ -736,6 +744,7 @@ static int start_preview(cam_data *cam)
+  */
+ static int stop_preview(cam_data *cam)
+ {
++#ifdef CONFIG_FB
+ 	int err = 0;
+ 
+ 	if (cam->vf_disable_csi) {
+@@ -764,6 +773,9 @@ static int stop_preview(cam_data *cam)
+ 	#endif
+ 
+ 	return err;
++#else
++	return -ENODEV;
++#endif
+ }
+ 
+ /***************************************************************************

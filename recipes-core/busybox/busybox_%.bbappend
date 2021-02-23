@@ -6,7 +6,6 @@ SRC_URI += "\
     file://add-shred.cfg \
     file://niceties.cfg \
     file://udhcpd.conf \
-    file://add-shred-utility.patch \
 "
 
 do_install_append() {
