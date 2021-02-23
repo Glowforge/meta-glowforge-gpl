@@ -1,0 +1,52 @@
+From 1187e2a3209e8691cd58eb02515cb5c791bcd431 Mon Sep 17 00:00:00 2001
+From: Matt Sarnoff <matt@glowforge.com>
+Date: Fri, 8 May 2020 14:24:18 -0700
+Subject: [PATCH] SDMA API enhancements (2 of 2)
+
+make it actually work
+---
+ drivers/dma/imx-sdma.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/dma/imx-sdma.c b/drivers/dma/imx-sdma.c
+index e45939375e2c..1dfd2e2e5177 100644
+--- a/drivers/dma/imx-sdma.c
++++ b/drivers/dma/imx-sdma.c
+@@ -857,7 +857,6 @@ int sdma_write_datamem(struct sdma_engine *sdma, void *buf, int size,
+ 		buf_virt = sdma->tiny_datamem_buf;
+ 		buf_phys = sdma->tiny_datamem_buf_phys;
+ 	}
+-
+ 	spin_lock_irqsave(&sdma->channel_0_lock, flags);
+ 
+ 	bd0->mode.command = C0_SETDM;
+@@ -867,11 +866,9 @@ int sdma_write_datamem(struct sdma_engine *sdma, void *buf, int size,
+ 	bd0->ext_buffer_addr = address;
+ 
+ 	memcpy(buf_virt, buf, size);
+-
+ 	ret = sdma_run_channel0(sdma);
+ 
+ 	spin_unlock_irqrestore(&sdma->channel_0_lock, flags);
+-
+ 	if (!tiny) {
+ 		if (sdma->iram_pool)
+ 			gen_pool_free(sdma->iram_pool, (unsigned long)buf_virt,
+@@ -2629,6 +2626,8 @@ static int sdma_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	sdma->fw_name = fw_name;
++	sdma_singleton = sdma;
++	dev_info(sdma->dev, "initialized\n");
+ 
+ 	return 0;
+ 
+@@ -2647,7 +2646,7 @@ static int sdma_remove(struct platform_device *pdev)
+ {
+ 	struct sdma_engine *sdma = platform_get_drvdata(pdev);
+ 	int i;
+-
++	sdma_singleton = NULL;
+ 	devm_free_irq(&pdev->dev, sdma->irq, sdma);
+ 	dma_async_device_unregister(&sdma->dma_device);
+ 	kfree(sdma->script_addrs);

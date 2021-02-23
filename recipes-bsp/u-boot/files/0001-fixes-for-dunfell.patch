@@ -1,0 +1,33 @@
+From 46b8337d2394ec3637351642209fe755b0ad43f6 Mon Sep 17 00:00:00 2001
+From: Parallels <parallels@buildvm.home>
+Date: Tue, 21 Apr 2020 16:50:36 -0700
+Subject: [PATCH] fixes for dunfell
+
+---
+ Makefile                      | 3 +++
+ include/linux/compiler-gcc9.h | 1 +
+ 2 files changed, 4 insertions(+)
+ create mode 120000 include/linux/compiler-gcc9.h
+
+diff --git a/Makefile b/Makefile
+index a7dce06408..165ff300ec 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1530,6 +1530,9 @@ endif
+ 	$(build)=$(build-dir) $(@:.ko=.o)
+ 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.modpost
+ 
++u-boot-initial-env: u-boot.bin
++	touch u-boot-initial-env
++
+ # FIXME Should go into a make.lib or something
+ # ===========================================================================
+ 
+diff --git a/include/linux/compiler-gcc10.h b/include/linux/compiler-gcc10.h
+new file mode 120000
+index 0000000000..fa3b6baefc
+--- /dev/null
++++ b/include/linux/compiler-gcc10.h
+@@ -0,0 +1 @@
++compiler-gcc5.h
+\ No newline at end of file

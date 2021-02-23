@@ -1,0 +1,18 @@
+From ecb916815da45a4e3b22a7a6f3fc547da5b2d9b7 Mon Sep 17 00:00:00 2001
+From: Matt Sarnoff <matt@glowforge.com>
+Date: Thu, 28 Jan 2021 12:53:50 -0800
+Subject: [PATCH] work with gcc 9 and 10
+
+---
+ include/linux/compiler-gcc9.h | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 120000 include/linux/compiler-gcc9.h
+
+diff --git a/include/linux/compiler-gcc9.h b/include/linux/compiler-gcc9.h
+new file mode 120000
+index 0000000000..fa3b6baefc
+--- /dev/null
++++ b/include/linux/compiler-gcc9.h
+@@ -0,0 +1 @@
++compiler-gcc5.h
+\ No newline at end of file

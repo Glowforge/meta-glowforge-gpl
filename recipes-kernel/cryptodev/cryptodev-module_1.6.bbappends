@@ -1,0 +1,2 @@
+MIRRORS += "\
+    http://download.gna.org/.* http://nwl.cc/pub/ \n"

@@ -1,0 +1,24 @@
+From 838b3ea1ff8d6283cd4d956ee7c6d2f635c35b97 Mon Sep 17 00:00:00 2001
+From: Matt Sarnoff <matt@glowforge.com>
+Date: Tue, 26 May 2020 16:42:21 -0700
+Subject: [PATCH] imx-sdma: define IMX_SDMA_CALLBACK_IN_HARDIRQ
+
+---
+ include/linux/platform_data/dma-imx-sdma.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/linux/platform_data/dma-imx-sdma.h b/include/linux/platform_data/dma-imx-sdma.h
+index 71a423b6a4a9..6af22aa5c480 100644
+--- a/include/linux/platform_data/dma-imx-sdma.h
++++ b/include/linux/platform_data/dma-imx-sdma.h
+@@ -228,6 +228,7 @@ struct sdma_channel *sdma_get_channel(struct sdma_engine *sdma, int channel);
+  * (e.g. with a "done 3" instruction).
+  * The function is executed in hard irq context.
+  */
++#define IMX_SDMA_CALLBACK_IN_HARDIRQ
+ void sdma_set_channel_interrupt_callback(struct sdma_channel *sdmac,
+ 		dma_async_tx_callback int_cb,
+ 		void *cb_param);
+-- 
+2.17.1
+

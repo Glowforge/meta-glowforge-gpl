@@ -1,0 +1,79 @@
+From 3d224aef9c2d09c37f6e818a4bf597e756ef6b84 Mon Sep 17 00:00:00 2001
+From: Matt Sarnoff <matt@glowforge.com>
+Date: Wed, 6 May 2020 15:41:29 -0700
+Subject: [PATCH] pwm-imx: additional prescaler via device tree
+
+The driver recognizes an additional device tree property named
+`fsl,extra-prescale` that can be used to divide the PWM period without
+affecting the range of duty cycle values that can be written to PWMSAR.
+
+The `fsl,extra-prescale` value is multiplied by the prescaler computed
+pwm_imx27_apply(), so the period of the actual output signal is
+`period_ns * extra_prescale`.
+
+From linux-glowforge bc913358a6c8eead8ab6ed5a904243dae902bbdb
+---
+ Documentation/devicetree/bindings/pwm/imx-pwm.txt |  6 ++++++
+ drivers/pwm/pwm-imx27.c                           | 11 ++++++++++-
+ 2 files changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/pwm/imx-pwm.txt b/Documentation/devicetree/bindings/pwm/imx-pwm.txt
+index c61bdf8cd41b..5da4cabf2b06 100644
+--- a/Documentation/devicetree/bindings/pwm/imx-pwm.txt
++++ b/Documentation/devicetree/bindings/pwm/imx-pwm.txt
+@@ -14,6 +14,12 @@ See the clock consumer binding,
+ 	Documentation/devicetree/bindings/clock/clock-bindings.txt
+ - interrupts: The interrupt for the pwm controller
+ 
++Optional properties:
++- fsl,extra-prescale: additional frequency divider. The effective output
++  period is equal to period_ns times this value. Defaults to 1. Can be used to
++  decrease the signal output frequency without affecting the range of valid
++  duty cycle values.
++
+ Example:
+ 
+ pwm1: pwm@53fb4000 {
+diff --git a/drivers/pwm/pwm-imx27.c b/drivers/pwm/pwm-imx27.c
+index 414fa80bfcba..5117d7a5445f 100644
+--- a/drivers/pwm/pwm-imx27.c
++++ b/drivers/pwm/pwm-imx27.c
+@@ -4,6 +4,9 @@
+  *
+  * Derived from pxa PWM driver by eric miao <eric.miao@marvell.com>
+  *
++ * Modifications to read additional prescaler from device tree are
++ * copyright (C) 2015-2018 Glowforge, Inc. <opensource@glowforge.com>
++ *
+  * Limitations:
+  * - When disabled the output is driven to 0 independent of the configured
+  *   polarity.
+@@ -84,6 +87,7 @@ struct pwm_imx27_chip {
+ 	struct clk	*clk_ipg;
+ 	struct clk	*clk_per;
+ 	struct clk	*clk_32k;
++	u32		extra_prescale;
+ 	void __iomem	*mmio_base;
+ 	struct pwm_chip	chip;
+ };
+@@ -275,7 +279,7 @@ static int pwm_imx27_apply(struct pwm_chip *chip, struct pwm_device *pwm,
+ 		writel(duty_cycles, imx->mmio_base + MX3_PWMSAR);
+ 		writel(period_cycles, imx->mmio_base + MX3_PWMPR);
+ 
+-		cr = MX3_PWMCR_PRESCALER_SET(prescale) |
++		cr = MX3_PWMCR_PRESCALER_SET(prescale*imx->extra_prescale) |
+ 		     MX3_PWMCR_STOPEN | MX3_PWMCR_DOZEN | MX3_PWMCR_WAITEN |
+ 		     FIELD_PREP(MX3_PWMCR_CLKSRC, MX3_PWMCR_CLKSRC_IPG_HIGH) |
+ 		     MX3_PWMCR_DBGEN | MX3_PWMCR_EN;
+@@ -346,6 +350,11 @@ static int pwm_imx27_probe(struct platform_device *pdev)
+ 		return PTR_ERR(imx->clk_32k);
+ 	}
+ 
++	if (of_property_read_u32(pdev->dev.of_node, "fsl,extra-prescale",
++		&imx->extra_prescale)) {
++		imx->extra_prescale = 1;
++	}
++
+ 	imx->chip.ops = &pwm_imx27_ops;
+ 	imx->chip.dev = &pdev->dev;
+ 	imx->chip.base = -1;

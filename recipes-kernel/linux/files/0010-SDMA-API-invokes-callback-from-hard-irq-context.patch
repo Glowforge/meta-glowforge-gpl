@@ -1,0 +1,106 @@
+From a90d293f2526363951055be50db6c348ee05858f Mon Sep 17 00:00:00 2001
+From: Matt Sarnoff <matt@glowforge.com>
+Date: Mon, 18 May 2020 15:20:33 -0700
+Subject: [PATCH] SDMA API invokes callback from hard irq context
+
+A change has been made (to the scheduler?) since 3.14.28 which causes
+tasklets to get buried under repeated interrupts. If you have a timer
+triggering a DMA channel 10,000 times a second, and that channel
+triggers an interrupt, you get into a situation where there's not enough
+time in between interrupts to allow the tasklet to be scheduled. By
+invoking the callback directly from the DMA irq handler, the API
+consumer (i.e. kernel module) is given the opportunity to stop the
+events, and can then defer the bottom half to a tasklet.
+---
+ drivers/dma/imx-sdma.c                     | 22 +++-------------------
+ include/linux/platform_data/dma-imx-sdma.h |  2 +-
+ 2 files changed, 4 insertions(+), 20 deletions(-)
+
+diff --git a/drivers/dma/imx-sdma.c b/drivers/dma/imx-sdma.c
+index 1dfd2e2e5177..404248278145 100644
+--- a/drivers/dma/imx-sdma.c
++++ b/drivers/dma/imx-sdma.c
+@@ -402,13 +402,11 @@ struct sdma_channel {
+ 	unsigned int			fifo_num;
+ 	bool				sw_done;
+ 	u32				sw_done_sel;
+-	struct tasklet_struct		custom_cb_tasklet;
+ 	dma_async_tx_callback		custom_callback;
+ 	void				*custom_callback_param;
+ };
+ 
+ #define IMX_DMA_SG_LOOP		BIT(0)
+-#define IMX_DMA_CUSTOM_CALLBACK	BIT(1)
+ 
+ #define MAX_DMA_CHANNELS 32
+ #define MXC_SDMA_DEFAULT_PRIORITY 1
+@@ -1091,14 +1089,6 @@ static void mxc_sdma_handle_channel_normal(struct sdma_channel *data)
+ 		sdmac->status = DMA_COMPLETE;
+ }
+ 
+-static void custom_cb_tasklet(unsigned long data)
+-{
+-	struct sdma_channel *sdmac = (struct sdma_channel *) data;
+-	if (sdmac->custom_callback)
+-		sdmac->custom_callback(sdmac->custom_callback_param);
+-}
+-
+-
+ static irqreturn_t sdma_int_handler(int irq, void *dev_id)
+ {
+ 	struct sdma_engine *sdma = dev_id;
+@@ -1115,10 +1105,11 @@ static irqreturn_t sdma_int_handler(int irq, void *dev_id)
+ 		struct sdma_desc *desc;
+ 
+ 		spin_lock(&sdmac->vc.lock);
++		if (sdmac->custom_callback)
++			sdmac->custom_callback(sdmac->custom_callback_param);
++
+ 		desc = sdmac->desc;
+ 		if (desc) {
+-			if (sdmac->flags & IMX_DMA_CUSTOM_CALLBACK)
+-				tasklet_schedule(&sdmac->custom_cb_tasklet);
+ 
+ 			if (sdmac->flags & IMX_DMA_SG_LOOP) {
+ 				if (sdmac->peripheral_type != IMX_DMATYPE_HDMI)
+@@ -1592,10 +1583,6 @@ void sdma_set_channel_interrupt_callback(struct sdma_channel *sdmac,
+ {
+ 	unsigned long flags;
+ 	spin_lock_irqsave(&sdmac->vc.lock, flags);
+-	if (int_cb)
+-		sdmac->flags |= IMX_DMA_CUSTOM_CALLBACK;
+-	else
+-		sdmac->flags &= ~IMX_DMA_CUSTOM_CALLBACK;
+ 	sdmac->custom_callback = int_cb;
+ 	sdmac->custom_callback_param = cb_param;
+ 	spin_unlock_irqrestore(&sdmac->vc.lock, flags);
+@@ -2523,8 +2510,6 @@ static int sdma_probe(struct platform_device *pdev)
+ 		sdmac->sdma = sdma;
+ 
+ 		sdmac->channel = i;
+-		tasklet_init(&sdmac->custom_cb_tasklet, custom_cb_tasklet,
+-			     (unsigned long) sdmac);
+ 		sdmac->vc.desc_free = sdma_desc_free;
+ 		INIT_WORK(&sdmac->terminate_worker,
+ 				sdma_channel_terminate_work);
+@@ -2657,7 +2642,6 @@ static int sdma_remove(struct platform_device *pdev)
+ 		struct sdma_channel *sdmac = &sdma->channel[i];
+ 
+ 		tasklet_kill(&sdmac->vc.task);
+-		tasklet_kill(&sdmac->custom_cb_tasklet);
+ 		sdma_free_chan_resources(&sdmac->vc.chan);
+ 	}
+ #if TINY_DATAMEM_BUF_SIZE
+diff --git a/include/linux/platform_data/dma-imx-sdma.h b/include/linux/platform_data/dma-imx-sdma.h
+index 11b91f080150..71a423b6a4a9 100644
+--- a/include/linux/platform_data/dma-imx-sdma.h
++++ b/include/linux/platform_data/dma-imx-sdma.h
+@@ -226,7 +226,7 @@ struct sdma_channel *sdma_get_channel(struct sdma_engine *sdma, int channel);
+  *
+  * Sets a function to be called when a custom SDMA script triggers an interrupt
+  * (e.g. with a "done 3" instruction).
+- * The function is executed in tasklet (atomic) context.
++ * The function is executed in hard irq context.
+  */
+ void sdma_set_channel_interrupt_callback(struct sdma_channel *sdmac,
+ 		dma_async_tx_callback int_cb,
